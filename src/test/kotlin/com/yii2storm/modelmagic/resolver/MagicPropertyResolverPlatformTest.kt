@@ -76,6 +76,56 @@ class MagicPropertyResolverPlatformTest : BasePlatformTestCase() {
         assertEquals(setOf("string", "null"), normalizedTypes)
     }
 
+    fun testResolvesRelationTargetTypesAndCardinality() {
+        myFixture.addFileToProject(
+            "yii/base/Model.php",
+            "<?php namespace yii\\base; class Model {}",
+        )
+        myFixture.addFileToProject(
+            "app/entities/Profile.php",
+            "<?php namespace app\\entities; class Profile extends \\yii\\base\\Model {}",
+        )
+        myFixture.addFileToProject(
+            "app/models/Post.php",
+            "<?php namespace app\\models; class Post extends \\yii\\base\\Model {}",
+        )
+        val file = myFixture.configureByText(
+            PhpFileType.INSTANCE,
+            """
+            <?php
+            namespace app\models;
+            use app\entities\Profile as AccountProfile;
+
+            class User extends \yii\base\Model {
+                public function getProfile() {
+                    return ${'$'}this->hasOne(AccountProfile::class, ['id' => 'profile_id'])->where([]);
+                }
+
+                public function getPosts() {
+                    return ${'$'}this->hasMany(Post::class, ['user_id' => 'id'])->inverseOf('user');
+                }
+
+                public function getDynamicRelation(): \yii\db\ActiveQuery {
+                    return ${'$'}this->hasOne(${'$'}this->relationClass(), ['id' => 'target_id']);
+                }
+            }
+            """.trimIndent(),
+        )
+        val model = PsiTreeUtil.findChildrenOfType(file, PhpClass::class.java)
+            .single { it.name == "User" }
+
+        val properties = MagicPropertyResolver.getInstance(project)
+            .getModelProperties(model)
+            .associateBy(MagicProperty::name)
+
+        assertEquals(PropertyKind.RELATION, properties["profile"]?.kind)
+        assertEquals(setOf("\\app\\entities\\Profile"), properties["profile"]?.type?.types?.toSet())
+        assertEquals(PropertyKind.RELATION, properties["posts"]?.kind)
+        assertEquals(setOf("\\app\\models\\Post[]"), properties["posts"]?.type?.types?.toSet())
+        assertEquals(PropertyKind.RELATION, properties["dynamicRelation"]?.kind)
+        assertNull(properties["dynamicRelation"]?.type)
+    }
+
     private fun createModel(body: String, classDoc: String = ""): PhpClass {
         val file = myFixture.configureByText(
             PhpFileType.INSTANCE,

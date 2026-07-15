@@ -61,6 +61,29 @@ class MagicPropertyFeaturesPlatformTest : BasePlatformTestCase() {
         assertTrue("Inferred types: $normalizedTypes", normalizedTypes.contains("string"))
     }
 
+    fun testCompletesRelationProperties() {
+        configureUsage("${'$'}user-><caret>")
+
+        val lookupStrings = myFixture.completeBasic()
+            ?.map { it.lookupString }
+            .orEmpty()
+
+        assertTrue("Completion variants: $lookupStrings", lookupStrings.contains("profile"))
+        assertTrue("Completion variants: $lookupStrings", lookupStrings.contains("posts"))
+    }
+
+    fun testInfersRelationTargetAndArrayItemTypes() {
+        configureUsage("${'$'}user->posts[0]->ti<caret>tle;")
+
+        val titleReference = PsiTreeUtil.findChildrenOfType(myFixture.file, FieldReference::class.java)
+            .single { it.name == "title" }
+        val completedType = PhpIndex.getInstance(project)
+            .completeType(project, titleReference.type, mutableSetOf())
+        val normalizedTypes = completedType.types.map { it.removePrefix("\\") }
+
+        assertTrue("Inferred types: $normalizedTypes", normalizedTypes.contains("string"))
+    }
+
     fun testReportsUnknownPropertyWithoutGeneratedQuickFixes() {
         myFixture.enableInspections(MagicPropertyInspection())
         configureUsage("${'$'}user->missingProperty;")
@@ -78,12 +101,32 @@ class MagicPropertyFeaturesPlatformTest : BasePlatformTestCase() {
             "<?php namespace yii\\base; class Model {}",
         )
         myFixture.addFileToProject(
+            "app/models/Profile.php",
+            "<?php namespace app\\models; class Profile extends \\yii\\base\\Model {}",
+        )
+        myFixture.addFileToProject(
+            "app/models/Post.php",
+            """
+            <?php
+            namespace app\models;
+            class Post extends \yii\base\Model {
+                public function getTitle(): string { return ''; }
+            }
+            """.trimIndent(),
+        )
+        myFixture.addFileToProject(
             "app/models/User.php",
             """
             <?php
             namespace app\models;
             class User extends \yii\base\Model {
                 public function getFullName(): string { return ''; }
+                public function getProfile() {
+                    return ${'$'}this->hasOne(Profile::class, ['id' => 'profile_id'])->where([]);
+                }
+                public function getPosts() {
+                    return ${'$'}this->hasMany(Post::class, ['user_id' => 'id'])->inverseOf('user');
+                }
             }
             """.trimIndent(),
         )

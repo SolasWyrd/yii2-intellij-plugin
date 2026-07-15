@@ -6,8 +6,11 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
+import com.intellij.psi.util.PsiTreeUtil
+import com.jetbrains.php.lang.psi.elements.ClassConstantReference
 import com.jetbrains.php.lang.psi.elements.Field
 import com.jetbrains.php.lang.psi.elements.Method
+import com.jetbrains.php.lang.psi.elements.MethodReference
 import com.jetbrains.php.lang.psi.elements.PhpClass
 import com.jetbrains.php.lang.psi.elements.PhpReference
 import com.jetbrains.php.lang.psi.elements.PhpUseList
@@ -32,6 +35,8 @@ class MagicPropertyResolver {
         )
         private const val GETTER_PREFIX = "get"
         private const val SETTER_PREFIX = "set"
+        private const val HAS_ONE_METHOD = "hasOne"
+        private const val HAS_MANY_METHOD = "hasMany"
 
         fun getInstance(project: Project): MagicPropertyResolver = INSTANCE
     }
@@ -307,7 +312,7 @@ class MagicPropertyResolver {
             .map { method ->
                 MagicProperty(
                     name = accessorToPropertyName(method.name, GETTER_PREFIX),
-                    type = extractRelationType(method) ?: getGetterReturnType(method),
+                    type = extractRelationType(method),
                     kind = PropertyKind.RELATION,
                     source = method,
                 )
@@ -345,52 +350,37 @@ class MagicPropertyResolver {
         }
     }
 
-    private fun isRelationMethod(method: Method): Boolean {
-        return method.children.any(::isHasOneOrHasManyCall)
-    }
-
-    private fun isHasOneOrHasManyCall(element: PsiElement): Boolean {
-        if (element is PhpReference) {
-            val name = element.name
-            if (name == "hasOne" || name == "hasMany") {
-                return true
-            }
-        }
-        return element.children.any(::isHasOneOrHasManyCall)
-    }
+    private fun isRelationMethod(method: Method): Boolean = findRelationCall(method) != null
 
     private fun extractRelationType(method: Method): PhpType? {
-        val relationCall = findRelationCall(method) ?: return method.type
-        val firstArgText = relationCall.parent?.text.orEmpty()
-        if (firstArgText.contains("::class")) {
-            val className = firstArgText.substringAfter("(").substringBefore("::class").trim()
-            normalizeFqn(className)?.let(::buildPhpTypeFromFqn)?.let { return it }
+        val relationCall = findRelationCall(method) ?: return null
+        val targetFqn = extractRelationTargetFqn(relationCall) ?: return null
+        var relationType = targetFqn
+        if (relationCall.name == HAS_MANY_METHOD) {
+            relationType += "[]"
         }
-        return method.type
+        return PhpType().add(relationType)
     }
 
-    private fun findRelationCall(method: Method): PhpReference? {
-        val visitor = RelationCallVisitor()
-        method.accept(visitor)
-        return visitor.found
+    private fun extractRelationTargetFqn(relationCall: MethodReference): String? {
+        val targetArgument = relationCall.getParameter(0) ?: return null
+        val classConstant = (targetArgument as? ClassConstantReference)
+            ?: PsiTreeUtil.findChildOfType(targetArgument, ClassConstantReference::class.java)
+            ?: return null
+        if (classConstant.name != "class") {
+            return null
+        }
+
+        val classReference = classConstant.classReference as? PhpReference ?: return null
+        val resolvedClass = classReference.resolve() as? PhpClass
+        return resolvedClass?.fqn ?: classReference.fqn?.let(::normalizeFqn)
     }
 
-    private class RelationCallVisitor : com.intellij.psi.PsiRecursiveElementVisitor() {
-        var found: PhpReference? = null
-
-        override fun visitElement(element: PsiElement) {
-            if (found != null) {
-                return
+    private fun findRelationCall(method: Method): MethodReference? {
+        return PsiTreeUtil.findChildrenOfType(method, MethodReference::class.java)
+            .firstOrNull { relationCall ->
+                relationCall.name == HAS_ONE_METHOD || relationCall.name == HAS_MANY_METHOD
             }
-            if (element is PhpReference) {
-                val name = element.name
-                if (name == "hasOne" || name == "hasMany") {
-                    found = element
-                    return
-                }
-            }
-            super.visitElement(element)
-        }
     }
 
     private fun getSetterParameterType(method: Method): PhpType? {
@@ -505,8 +495,6 @@ class MagicPropertyResolver {
         normalizedTypes.forEach(type::add)
         return type
     }
-
-    private fun buildPhpTypeFromFqn(fqn: String): PhpType = PhpType().add(fqn)
 
     private fun isPublic(field: Field): Boolean = field.modifier.isPublic
 

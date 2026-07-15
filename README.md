@@ -9,6 +9,7 @@
 - автодополнение свойств из public fields, getters, setters, `hasOne()` / `hasMany()`, `attributes()` и PHPDoc;
 - переход к getter/setter/relation через Go to Declaration;
 - вывод типа из PHP type declarations и PHPDoc;
+- разрешение relation target через namespace/use aliases; `hasMany()` выводится как массив моделей;
 - inspection неизвестных свойств модели;
 - project settings для включения источников и настройки приоритетов resolution/navigation;
 - нормализация snake_case и camelCase при поиске getter/setter.
@@ -70,8 +71,7 @@ com.yii2storm.modelmagic/
 
 ## Ближайшее развитие
 
-1. Расширить PSI fixtures для relations, PHPDoc variants и inherited models.
-2. Корректно разбирать relation target и cardinality `hasOne()` / `hasMany()`.
-3. Реализовать Find Usages/rename через совместимый с PHP PSI контракт.
-4. Добавить behavior properties и отдельную поддержку ArrayAccess.
-5. Реализовать безопасные quick fixes с проверяемыми PSI transformations.
+1. Расширить PSI fixtures для inherited models, PHPDoc variants и сложных relation expressions.
+2. Реализовать Find Usages/rename через совместимый с PHP PSI контракт.
+3. Добавить behavior properties и отдельную поддержку ArrayAccess.
+4. Реализовать безопасные quick fixes с проверяемыми PSI transformations.
