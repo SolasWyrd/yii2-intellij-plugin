@@ -1,5 +1,5 @@
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
-import org.jetbrains.intellij.platform.gradle.models.ProductRelease
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -20,15 +20,13 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        phpstorm("2026.1")
+        phpstorm("2025.1.7.1")
         bundledPlugin("com.jetbrains.php")
         pluginVerifier()
+        testFramework(TestFrameworkType.Platform)
     }
 
-    testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.2")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
+    testImplementation("junit:junit:4.13.2")
 }
 
 java {
@@ -46,19 +44,14 @@ kotlin {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild.set("261")
-            untilBuild.set("261.*")
+            sinceBuild.set("251")
         }
     }
 
     pluginVerification {
         ides {
-            select {
-                types = listOf(IntelliJPlatformType.PhpStorm)
-                channels = listOf(ProductRelease.Channel.RELEASE)
-                sinceBuild = "251"
-                untilBuild = "251.*"
-            }
+            create(IntelliJPlatformType.PhpStorm, "2025.1.7.1")
+            create(IntelliJPlatformType.PhpStorm, "2026.1")
         }
     }
 }
@@ -74,13 +67,5 @@ tasks {
 
     runIde {
         jvmArgs = listOf("-Xmx2048m")
-    }
-
-    test {
-        useJUnitPlatform()
-        systemProperty("java.system.class.loader", "com.intellij.util.lang.PathClassLoader")
-        exclude("**/*PluginTest*")
-        exclude("**/*PlatformTest*")
-        exclude("**/*IntellijTest*")
     }
 }

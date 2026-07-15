@@ -134,6 +134,7 @@ class ModelMagicProjectConfigurable(
         state.navigationSetterPriority = navigationSetterSpinner.value as Int
         state.navigationAttributePriority = navigationAttributeSpinner.value as Int
         state.navigationPhpDocPriority = navigationPhpDocSpinner.value as Int
+        service.settingsChanged()
     }
 
     override fun reset() {

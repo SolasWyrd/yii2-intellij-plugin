@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Test and inspect project configuration
+        run: ./gradlew check verifyPluginProjectConfiguration
+
+      - name: Build and verify plugin
+        run: ./gradlew buildPlugin verifyPlugin
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-reports
+          path: build/reports/tests
+
+      - name: Upload Plugin Verifier reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: plugin-verifier-reports
+          path: build/reports/pluginVerifier

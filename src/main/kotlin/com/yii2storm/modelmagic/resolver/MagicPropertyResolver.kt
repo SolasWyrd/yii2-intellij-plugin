@@ -41,9 +41,14 @@ class MagicPropertyResolver {
             return emptyList()
         }
 
+        val settings = ModelMagicProjectSettingsService.getInstance(phpClass.project)
         return CachedValuesManager.getCachedValue(phpClass) {
             val result = computeModelProperties(phpClass)
-            CachedValueProvider.Result.create(result, PsiModificationTracker.MODIFICATION_COUNT)
+            CachedValueProvider.Result.create(
+                result,
+                PsiModificationTracker.MODIFICATION_COUNT,
+                settings.modificationTracker,
+            )
         }
     }
 
@@ -90,7 +95,7 @@ class MagicPropertyResolver {
 
         while (queue.isNotEmpty()) {
             val current = queue.removeFirst()
-            if (current.fqn in YII_MODEL_CLASSES) {
+            if (current.fqn in YII_MODEL_CLASSES || current.superFQN in YII_MODEL_CLASSES) {
                 return true
             }
             if (!visited.add(current.fqn)) {
@@ -108,15 +113,11 @@ class MagicPropertyResolver {
     }
 
     fun propertyNameToGetter(propertyName: String): String {
-        val variants = propertyNameVariants(propertyName)
-        val getterCandidates = variants.map { GETTER_PREFIX + it.replaceFirstChar(Char::uppercaseChar) }
-        return getterCandidates.first()
+        return GETTER_PREFIX + propertyNameToAccessorSuffix(propertyName)
     }
 
     fun propertyNameToSetter(propertyName: String): String {
-        val variants = propertyNameVariants(propertyName)
-        val setterCandidates = variants.map { SETTER_PREFIX + it.replaceFirstChar(Char::uppercaseChar) }
-        return setterCandidates.first()
+        return SETTER_PREFIX + propertyNameToAccessorSuffix(propertyName)
     }
 
     fun propertyNameToGetterCandidates(propertyName: String): List<String> {
@@ -162,7 +163,10 @@ class MagicPropertyResolver {
     }
 
     private fun findProperty(phpClass: PhpClass, propertyName: String): MagicProperty? {
-        return getModelProperties(phpClass).firstOrNull { it.name == propertyName }
+        val identity = normalizedPropertyIdentity(propertyName)
+        return getModelProperties(phpClass).firstOrNull {
+            normalizedPropertyIdentity(it.name) == identity
+        }
     }
 
     private fun collectClassHierarchy(phpClass: PhpClass): List<PhpClass> {
@@ -278,7 +282,7 @@ class MagicPropertyResolver {
                 isPublic(method) &&
                     method.name.startsWith(SETTER_PREFIX) &&
                     method.name.length > SETTER_PREFIX.length &&
-                    method.parameters.isNotEmpty() &&
+                    method.parameters.size == 1 &&
                     !isRelationMethod(method)
             }
             .map { method ->
@@ -456,6 +460,13 @@ class MagicPropertyResolver {
         return if (tokens.isEmpty()) name.lowercase() else tokens.joinToString("_") { it.lowercase() }
     }
 
+    private fun propertyNameToAccessorSuffix(propertyName: String): String {
+        val normalizedName = propertyNameVariants(propertyName)
+            .firstOrNull { !it.contains('_') }
+            ?: propertyName
+        return normalizedName.replaceFirstChar(Char::uppercaseChar)
+    }
+
     private fun propertyNameVariants(propertyName: String): List<String> {
         val tokens = splitPropertyTokens(propertyName)
         if (tokens.isEmpty()) {
@@ -481,13 +492,18 @@ class MagicPropertyResolver {
     }
 
     private fun buildPhpType(rawType: String?): PhpType? {
-        val normalized = rawType
-            ?.trim()
-            ?.substringBefore("|")
-            ?.removeSuffix("[]")
-            ?.takeIf { it.isNotBlank() }
-            ?: return null
-        return PhpType().add(normalized)
+        val normalizedTypes = rawType
+            ?.split('|')
+            ?.map(String::trim)
+            ?.filter(String::isNotBlank)
+            .orEmpty()
+        if (normalizedTypes.isEmpty()) {
+            return null
+        }
+
+        val type = PhpType()
+        normalizedTypes.forEach(type::add)
+        return type
     }
 
     private fun buildPhpTypeFromFqn(fqn: String): PhpType = PhpType().add(fqn)

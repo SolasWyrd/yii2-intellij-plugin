@@ -1,50 +1,42 @@
-.PHONY: help build test clean run lint package
+.PHONY: help build test clean run lint package verify init rebuild install
 
-# Default target
 help:
-	@echo "Yii2 Model Magic Plugin - Makefile"
+	@echo "Yii2 Model Magic Plugin"
 	@echo ""
 	@echo "Available commands:"
 	@echo "  make build      - Build the plugin"
-	@echo "  make test       - Run tests"
+	@echo "  make test       - Run unit and platform tests"
 	@echo "  make clean      - Clean build artifacts"
-	@echo "  make run        - Run IDE with plugin"
+	@echo "  make run        - Run PhpStorm sandbox with the plugin"
 	@echo "  make package    - Build plugin distribution"
-	@echo "  make lint       - Run code checks"
-	@echo ""
+	@echo "  make verify     - Run IntelliJ Plugin Verifier"
+	@echo "  make lint       - Run repository checks"
 
-init: clean lint build test package
+init: clean lint test package verify
 
-# Build the project
 build:
 	./gradlew build
 
-# Run tests
 test:
 	./gradlew test
 
-# Clean build artifacts
 clean:
 	./gradlew clean
 
-# Build plugin distribution (ZIP file)
 package:
 	./gradlew buildPlugin
-	@echo ""
 	@echo "Plugin ZIP created in build/distributions/"
 
-# Run code quality checks
+verify:
+	./gradlew verifyPlugin
+
+run:
+	./gradlew runIde
+
 lint:
 	./gradlew check
 
-# Rebuild from scratch
 rebuild: clean build
 
-# Run tests with coverage (if plugin available)
-test-coverage:
-	./gradlew test jacocoTestReport
-
-# Install plugin to local IDE
 install: package
-	@echo "Plugin package ready at: build/distributions/*.zip"
-	@echo "Install via: Settings → Plugins → ⚙️ → Install from Disk"
+	@echo "Install via: Settings → Plugins → ⚙ → Install Plugin from Disk"

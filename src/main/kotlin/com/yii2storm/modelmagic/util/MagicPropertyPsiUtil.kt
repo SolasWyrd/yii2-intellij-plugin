@@ -16,8 +16,9 @@ object MagicPropertyPsiUtil {
      */
     fun resolveModelClasses(project: Project, fieldReference: FieldReference): List<PhpClass> {
         val classReference = fieldReference.classReference ?: return emptyList()
-        return resolveClassesFromType(classReference.type, project) +
-                resolveClassesFromType(classReference.globalType, project)
+        return (resolveClassesFromType(classReference.type, project) +
+            resolveClassesFromType(classReference.globalType, project))
+            .distinctBy(PhpClass::getFQN)
     }
 
     /**

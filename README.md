@@ -1,51 +1,77 @@
-# Yii2Storm
+# Yii2 Model Magic
 
-Production-ready плагин для PhpStorm с поддержкой Yii2 Framework.
+Плагин для PhpStorm, который добавляет поддержку magic properties моделей Yii2 при обращении через `$model->property`.
+
+Проект находится в активной разработке. Текущий scope ограничен model magic; это не полный набор инструментов для views, routes, translations, aliases или application components.
+
+## Реализовано
+
+- автодополнение свойств из public fields, getters, setters, `hasOne()` / `hasMany()`, `attributes()` и PHPDoc;
+- переход к getter/setter/relation через Go to Declaration;
+- вывод типа из PHP type declarations и PHPDoc;
+- inspection неизвестных свойств модели;
+- project settings для включения источников и настройки приоритетов resolution/navigation;
+- нормализация snake_case и camelCase при поиске getter/setter.
+
+## Пока не реализовано
+
+- свойства, добавляемые Yii behaviors;
+- `$model['property']` через `ArrayAccess`;
+- Find Usages и rename refactoring для magic properties;
+- генерация PHPDoc/getter/setter через quick fixes;
+- поддержка views, routes, translations, aliases и `Yii::$app` components.
 
 ## Архитектура
 
+```text
+com.yii2storm.modelmagic/
+├── resolver/      # Сбор и приоритизация magic properties
+├── util/          # Определение model classes по PSI type
+├── completion/    # Completion contributor
+├── navigation/    # Go to Declaration
+├── type/          # PhpTypeProvider4
+├── inspection/    # Inspection неизвестных свойств
+├── annotator/     # Информационная аннотация resolved properties
+└── settings/      # Project-level sources и priorities
 ```
-com.yii2storm/
-├── context/          # Определение Yii2 контекстов
-├── resolver/         # Единые сервисы резолва
-├── reference/        # Reference contributors
-├── completion/       # Completion contributors
-├── inspection/       # Inspections и quick fixes
-├── action/           # Actions
-└── util/             # Утилиты
+
+## Требования
+
+- PhpStorm 2025.1 или новее;
+- JDK 21 для локальной сборки;
+- Gradle Wrapper из репозитория.
+
+## Проверки
+
+```bash
+./gradlew test
+./gradlew check
+./gradlew buildPlugin
+./gradlew verifyPlugin
 ```
 
-## Функциональность
+`test` включает обычные unit tests и headless IntelliJ Platform tests на реальном PSI. `verifyPlugin` проверяет binary compatibility выбранных версий PhpStorm.
 
-| Фича | Описание |
-|------|----------|
-| **View** | Ctrl+Click на `render()` → view, автодополнение, inspection + quick fix |
-| **Route** | Ctrl+Click на `['site/index']` → action, автодополнение routes |
-| **Translation** | Ctrl+Click на `Yii::t()` → определение, автодополнение категорий/ключей |
-| **Alias** | Ctrl+Click на `@app/...` → директория, автодополнение, inspection |
-| **Component** | Автодополнение `Yii::$app->` (cache, db, user, ...) |
+## Запуск в sandbox IDE
 
-## Установка для разработки
+```bash
+./gradlew runIde
+```
 
-1. Откройте проект в IntelliJ IDEA
-2. Настройте SDK: IntelliJ Platform Plugin SDK
-3. Запустите через Gradle: `./gradlew runIde`
-
-## Сборка плагина
+## Сборка
 
 ```bash
 ./gradlew buildPlugin
 ```
 
-Плагин соберётся в `build/distributions/yii2-storm-1.0.0.zip`
+Архив создаётся в `build/distributions/yii2-model-magic-1.0.0.zip`.
 
-## Установка в PhpStorm
+Установка: **Settings → Plugins → ⚙ → Install Plugin from Disk**.
 
-1. Settings → Plugins → Install from disk
-2. Выберите `yii2-storm-1.0.0.zip`
-3. Перезапустите IDE
+## Ближайшее развитие
 
-## Требования
-
-- PhpStorm 2023.2+
-- JDK 17+
+1. Расширить PSI fixtures для relations, PHPDoc variants и inherited models.
+2. Корректно разбирать relation target и cardinality `hasOne()` / `hasMany()`.
+3. Реализовать Find Usages/rename через совместимый с PHP PSI контракт.
+4. Добавить behavior properties и отдельную поддержку ArrayAccess.
+5. Реализовать безопасные quick fixes с проверяемыми PSI transformations.

@@ -5,17 +5,28 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.ModificationTracker
+import com.intellij.openapi.util.SimpleModificationTracker
 import com.yii2storm.modelmagic.resolver.PropertyKind
 
 @State(name = "Yii2ModelMagicProjectSettings", storages = [Storage("yii2-model-magic.xml")])
 class ModelMagicProjectSettingsService : PersistentStateComponent<ModelMagicProjectSettingsState> {
 
     private var state = ModelMagicProjectSettingsState()
+    private val settingsModificationTracker = SimpleModificationTracker()
 
     override fun getState(): ModelMagicProjectSettingsState = state
 
     override fun loadState(state: ModelMagicProjectSettingsState) {
         this.state = state
+        settingsModificationTracker.incModificationCount()
+    }
+
+    val modificationTracker: ModificationTracker
+        get() = settingsModificationTracker
+
+    fun settingsChanged() {
+        settingsModificationTracker.incModificationCount()
     }
 
     fun isSourceEnabled(kind: PropertyKind): Boolean = when (kind) {
