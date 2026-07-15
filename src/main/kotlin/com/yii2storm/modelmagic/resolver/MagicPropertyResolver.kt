@@ -37,6 +37,7 @@ class MagicPropertyResolver {
         private const val SETTER_PREFIX = "set"
         private const val HAS_ONE_METHOD = "hasOne"
         private const val HAS_MANY_METHOD = "hasMany"
+        private const val CLASS_NAME_METHOD = "className"
 
         fun getInstance(project: Project): MagicPropertyResolver = INSTANCE
     }
@@ -364,16 +365,41 @@ class MagicPropertyResolver {
 
     private fun extractRelationTargetFqn(relationCall: MethodReference): String? {
         val targetArgument = relationCall.getParameter(0) ?: return null
+        extractClassConstantTargetFqn(targetArgument)?.let { return it }
+        return extractClassNameTargetFqn(targetArgument)
+    }
+
+    private fun extractClassConstantTargetFqn(targetArgument: PsiElement): String? {
         val classConstant = (targetArgument as? ClassConstantReference)
             ?: PsiTreeUtil.findChildOfType(targetArgument, ClassConstantReference::class.java)
             ?: return null
         if (classConstant.name != "class") {
             return null
         }
+        return resolvePhpClassFqn(classConstant.classReference)
+    }
 
-        val classReference = classConstant.classReference as? PhpReference ?: return null
+    private fun extractClassNameTargetFqn(targetArgument: PsiElement): String? {
+        val classNameCall = targetArgument as? MethodReference ?: return null
+        if (classNameCall.name != CLASS_NAME_METHOD) {
+            return null
+        }
+        if (classNameCall.isStatic == false) {
+            return null
+        }
+        if (classNameCall.parameters.isNotEmpty()) {
+            return null
+        }
+        return resolvePhpClassFqn(classNameCall.classReference)
+    }
+
+    private fun resolvePhpClassFqn(referenceElement: PsiElement?): String? {
+        val classReference = referenceElement as? PhpReference ?: return null
         val resolvedClass = classReference.resolve() as? PhpClass
-        return resolvedClass?.fqn ?: classReference.fqn?.let(::normalizeFqn)
+        if (resolvedClass != null) {
+            return resolvedClass.fqn
+        }
+        return classReference.fqn?.let(::normalizeFqn)
     }
 
     private fun findRelationCall(method: Method): MethodReference? {

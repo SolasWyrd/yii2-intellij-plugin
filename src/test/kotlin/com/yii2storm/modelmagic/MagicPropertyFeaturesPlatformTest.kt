@@ -70,10 +70,45 @@ class MagicPropertyFeaturesPlatformTest : BasePlatformTestCase() {
 
         assertTrue("Completion variants: $lookupStrings", lookupStrings.contains("profile"))
         assertTrue("Completion variants: $lookupStrings", lookupStrings.contains("posts"))
+        assertTrue("Completion variants: $lookupStrings", lookupStrings.contains("legacyPosts"))
     }
 
     fun testInfersRelationTargetAndArrayItemTypes() {
         configureUsage("${'$'}user->posts[0]->ti<caret>tle;")
+
+        val titleReference = PsiTreeUtil.findChildrenOfType(myFixture.file, FieldReference::class.java)
+            .single { it.name == "title" }
+        val completedType = PhpIndex.getInstance(project)
+            .completeType(project, titleReference.type, mutableSetOf())
+        val normalizedTypes = completedType.types.map { it.removePrefix("\\") }
+
+        assertTrue("Inferred types: $normalizedTypes", normalizedTypes.contains("string"))
+    }
+
+    fun testInfersLegacyClassNameRelationItemType() {
+        configureUsage("${'$'}user->legacyPosts[0]->ti<caret>tle;")
+
+        val titleReference = PsiTreeUtil.findChildrenOfType(myFixture.file, FieldReference::class.java)
+            .single { it.name == "title" }
+        val completedType = PhpIndex.getInstance(project)
+            .completeType(project, titleReference.type, mutableSetOf())
+        val normalizedTypes = completedType.types.map { it.removePrefix("\\") }
+
+        assertTrue("Inferred types: $normalizedTypes", normalizedTypes.contains("string"))
+    }
+
+    fun testCompletesInheritedRelationProperty() {
+        configureUsage("${'$'}user-><caret>", "\\app\\models\\AdminUser")
+
+        val lookupStrings = myFixture.completeBasic()
+            ?.map { it.lookupString }
+            .orEmpty()
+
+        assertTrue("Completion variants: $lookupStrings", lookupStrings.contains("posts"))
+    }
+
+    fun testInfersInheritedRelationItemType() {
+        configureUsage("${'$'}user->posts[0]->ti<caret>tle;", "\\app\\models\\AdminUser")
 
         val titleReference = PsiTreeUtil.findChildrenOfType(myFixture.file, FieldReference::class.java)
             .single { it.name == "title" }
@@ -98,7 +133,7 @@ class MagicPropertyFeaturesPlatformTest : BasePlatformTestCase() {
     private fun addYiiModelFixture() {
         myFixture.addFileToProject(
             "yii/base/Model.php",
-            "<?php namespace yii\\base; class Model {}",
+            "<?php namespace yii\\base; class Model { public static function className(): string { return static::class; } }",
         )
         myFixture.addFileToProject(
             "app/models/Profile.php",
@@ -119,6 +154,8 @@ class MagicPropertyFeaturesPlatformTest : BasePlatformTestCase() {
             """
             <?php
             namespace app\models;
+            use app\models\Post as LegacyPost;
+
             class User extends \yii\base\Model {
                 public function getFullName(): string { return ''; }
                 public function getProfile() {
@@ -127,17 +164,27 @@ class MagicPropertyFeaturesPlatformTest : BasePlatformTestCase() {
                 public function getPosts() {
                     return ${'$'}this->hasMany(Post::class, ['user_id' => 'id'])->inverseOf('user');
                 }
+                public function getLegacyPosts() {
+                    return ${'$'}this->hasMany(LegacyPost::className(), ['user_id' => 'id']);
+                }
             }
             """.trimIndent(),
         )
+        myFixture.addFileToProject(
+            "app/models/AdminUser.php",
+            "<?php namespace app\\models; class AdminUser extends User {}",
+        )
     }
 
-    private fun configureUsage(expression: String) {
+    private fun configureUsage(
+        expression: String,
+        modelFqn: String = "\\app\\models\\User",
+    ) {
         myFixture.configureByText(
             PhpFileType.INSTANCE,
             """
             <?php
-            function inspectUser(\app\models\User ${'$'}user): void {
+            function inspectUser($modelFqn ${'$'}user): void {
                 $expression
             }
             """.trimIndent(),

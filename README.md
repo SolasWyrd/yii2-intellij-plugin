@@ -9,7 +9,7 @@
 - автодополнение свойств из public fields, getters, setters, `hasOne()` / `hasMany()`, `attributes()` и PHPDoc;
 - переход к getter/setter/relation через Go to Declaration;
 - вывод типа из PHP type declarations и PHPDoc;
-- разрешение relation target через namespace/use aliases; `hasMany()` выводится как массив моделей;
+- разрешение relation target через namespace/use aliases, `::class` и legacy `::className()`; `hasMany()` выводится как массив моделей;
 - inspection неизвестных свойств модели;
 - project settings для включения источников и настройки приоритетов resolution/navigation;
 - нормализация snake_case и camelCase при поиске getter/setter.
